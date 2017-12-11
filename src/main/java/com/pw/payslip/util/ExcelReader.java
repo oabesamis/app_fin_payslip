@@ -2,10 +2,12 @@ package com.pw.payslip.util;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
@@ -42,19 +44,22 @@ public class ExcelReader {
 			    		continue; 
 			    	}
 			    	
-			    	//process rows starting at row 2
-			    	
+			    	//process rows starting at row 2			    	
 			    	LinkedHashMap<String, String> rowMap = new LinkedHashMap<String, String>();
 			    			    	
 			    	java.util.Iterator<Cell> cells = row.cellIterator();
 			    	int counter = 0;
 			    	 while (cells.hasNext()){
 			    		 XSSFCell cell = (XSSFCell) cells.next();
-			    		 rowMap.put(columnNames.getCell(counter).getStringCellValue(), cell.getStringCellValue());
+			    		 if (cell.getCellType() == 0){//0 NUMERIC
+			    			 rowMap.put(columnNames.getCell(counter).getStringCellValue(), cell.getNumericCellValue()+"");				 
+			    		 }else{
+			    			rowMap.put(columnNames.getCell(counter).getStringCellValue(), cell.getStringCellValue());
+			    		 }
 			    		 counter++;
-			    	 }	    	
+			    	 }	  	
 			    	
-			    	hashMap.put(row.getRowNum() + 1, rowMap);	//+1 because first entry starts at row 2 in an excel file.
+			    	hashMap.put(row.getRowNum(), rowMap);	//no more +1 because it will process the current row number, we already skip 0
 			    }
 				
 			}
@@ -71,9 +76,24 @@ public class ExcelReader {
 	
 	
 	public static void main(String[] args){
+		PropertiesUtil propIUtil = new PropertiesUtil();
+		Properties prop = propIUtil.loadProperties();
+		File file = new File("C:\\Users\\w68790\\payservice\\test.xlsx");
+		Map results = ExcelReader.loadExcelLines(file);
 		
-		File file = new File("C:\\Users\\Olie.Abesamis\\Documents\\JavaApps\\testdata.xlsx");
-		ExcelReader.loadExcelLines(file);
+		 System.out.println(results.size());
+		//looping on the list start with 1 since it is the first row with data
+		for (int i = 1; i<= results.size(); i++){
+			Map cells = (LinkedHashMap<String, String>) results.get(i);
+			//TODO
+			//loop to generate pdf
+			//send email
+			PdfCreator creator = new PdfCreator();
+			creator.createPdf(null, cells);
+			String title = (String) prop.get(PayConstants.COMPANY_NAME_FIELD);
+	        System.out.println(title);
+			System.out.println(i + " " + cells.get(prop.get(PayConstants.PERIOD_FIELD)) + " " + cells.get(prop.get(PayConstants.EMPLOYEE_ID_FIELD)));			
+		}
 		
 	}
 	
