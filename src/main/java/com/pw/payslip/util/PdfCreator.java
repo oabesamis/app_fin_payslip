@@ -1,26 +1,35 @@
 package com.pw.payslip.util;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.itextpdf.text.BadElementException;
 import com.itextpdf.text.BaseColor;
+import com.itextpdf.text.Chunk;
 import com.itextpdf.text.Document;
 import com.itextpdf.text.DocumentException;
 import com.itextpdf.text.Element;
 import com.itextpdf.text.Font;
+import com.itextpdf.text.ListItem;
+import com.itextpdf.text.PageSize;
 import com.itextpdf.text.Paragraph;
 import com.itextpdf.text.Phrase;
 import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
+import com.pw.payslip.email.EmailSender;
 
 public class PdfCreator {
 	
-	private static String FILE = "c:/work-git/FirstPdf.pdf";
+	private static String FILE = "C:\\Users\\Olie.Abesamis\\Documents\\JavaApps\\FirstPdf.pdf";
     private static Font catFont = new Font(Font.FontFamily.TIMES_ROMAN, 18,
             Font.BOLD);
     private static Font redFont = new Font(Font.FontFamily.TIMES_ROMAN, 12,
@@ -32,17 +41,23 @@ public class PdfCreator {
     
     private Properties properties;
     
+    private ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
     
     public void createPdf(File location, Map data){
     	try {
     		PropertiesUtil propIUtil = new PropertiesUtil();
     		properties = propIUtil.loadProperties();
-            Document document = new Document();
-            PdfWriter.getInstance(document, new FileOutputStream(FILE));
+            Document document = new Document(PageSize.LETTER);
+            //PdfWriter.getInstance(document, new FileOutputStream(FILE));
+            PdfWriter.getInstance(document, byteArrayOutputStream);
             document.open();
             addMetaData(document);
-            addTitlePage(document, data);
+            //addTitlePage(document, data);
             addContent(document, data);
+            byte[] bytes = byteArrayOutputStream.toByteArray();
+            EmailSender email = new EmailSender();
+            email.email(bytes);
+            
             document.close();
         } catch (Exception e) {
             e.printStackTrace();
@@ -78,18 +93,159 @@ public class PdfCreator {
     }
 
     private void addContent(Document document, Map data) throws DocumentException {
-        
-    	//Paragraph contentsPara = new Paragraph();
-
-        Paragraph subPara = new Paragraph("Deductions", subFont);
-        //contentsPara.add(subPara);
-        
-        createTable(subPara, data);
-
-        // now add all this to the document
-        document.add(subPara);
-
-        
+    	
+    	Paragraph preface = new Paragraph();
+    	
+    	
+    	StringBuilder name = new StringBuilder((String) data.get(PayConstants.LASTNAME_FIELD));
+    	name.append(", ");
+    	name.append(data.get(PayConstants.FIRSTNAME_FIELD));
+    	
+    	//first table
+    	PdfPTable basicInfo = new PdfPTable(new float[] { 1, 1, 1, 1, 1 });
+    	basicInfo.getDefaultCell().setBorder(PdfPCell.NO_BORDER);
+    	Font tfont = new Font(Font.FontFamily.UNDEFINED, 10, Font.BOLD);
+    	
+    	Paragraph p = new Paragraph("", tfont);
+    	PdfPCell cell = new PdfPCell(p);
+    	
+    	basicInfo.setWidthPercentage(100);
+    	basicInfo.addCell(new Phrase(""));
+    	basicInfo.addCell(new Phrase((String) data.get(PayConstants.EMPLOYEE_ID_FIELD), tfont));
+    	basicInfo.addCell(new Phrase(name.toString(), tfont));
+    	basicInfo.addCell(new Phrase((String) data.get(PayConstants.COMPANY_NAME_FIELD), tfont));
+    	basicInfo.addCell(new Phrase((String) data.get(PayConstants.PERIOD_FIELD), tfont));
+    	document.add(basicInfo);
+    	    	
+    	addEmptyLine(preface, 1);
+    	document.add(preface);
+    	
+    	//second table
+    	PdfPTable body  = new PdfPTable(new float[] { 1, 1, 1, 1, 1 });
+    	body.getDefaultCell().setBorder(PdfPCell.NO_BORDER);
+    	body.setWidthPercentage(100);
+    	body.addCell(new Phrase("Basic", tfont));
+    	body.addCell(new Phrase((String) data.get(PayConstants.DAYS_ABSENT) + " D", tfont));
+    	
+    	p = new Paragraph("", tfont);    
+    	p.add((String) data.get(PayConstants.BASIC_SALARY_FIELD));
+    	cell = new PdfPCell(p);
+		cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+		cell.setBorder(PdfPCell.NO_BORDER);
+		cell.setPaddingRight(40);		
+    	
+    	body.addCell(cell);
+    	
+    	//TODO this should be dynamic. there are multiple types of deductions like tax deficit 	
+    	//TODO manual listing. this will be moved to props file then parse it
+    	String typesOfDeductionsString = "SSS, Philhealth, Pag-Ibig, Withholding Tax, Tax Adj, Others";
+    	String[] typesOfDeductionStringArray = StringUtils.split(typesOfDeductionsString, ",");
+    	List<String> typesOfDeductionsList = Arrays.asList(typesOfDeductionStringArray);
+    			
+    	com.itextpdf.text.List deductionTypeList = new com.itextpdf.text.List();
+    	com.itextpdf.text.List deductionValueList = new com.itextpdf.text.List();
+    	deductionTypeList.add(new ListItem("Deductions : \n\n"));
+    
+    	deductionValueList.add(new ListItem("\n\n"));
+    	
+    	for(String deduction : typesOfDeductionsList) {
+    		String deduct = deduction.toUpperCase().trim();
+    		String deductionValue = (String) data.get(deduct);
+    		if(StringUtils.isNotEmpty(deductionValue)){
+    			deductionTypeList.add(new ListItem(deduction.trim() + "\n"));
+    			deductionValueList.add(new ListItem(deductionValue + "\n"));
+    		}
+    	}
+    	
+    	
+    	
+    	Phrase deductionTypePhrase = new Phrase();    
+    	deductionTypePhrase.setFont(tfont);
+    	deductionTypePhrase.add(deductionTypeList);   	
+    	
+    	p = new Paragraph("", tfont);    
+    	p.add(deductionTypePhrase);
+    	cell = new PdfPCell(p);		
+		cell.setBorder(PdfPCell.NO_BORDER);
+		body.addCell(cell);
+    	
+    	Phrase deductionValuePhrase = new Phrase();       
+    	deductionValuePhrase.add(deductionValueList);   	
+    	
+    	
+		p = new Paragraph("",tfont);
+		p.setFont(tfont);
+		p.add(deductionValuePhrase);
+		cell = new PdfPCell(p);
+		cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+		cell.setBorder(PdfPCell.NO_BORDER);
+		body.addCell(cell);
+		
+		
+    	
+    	document.add(body);
+    	
+    	addEmptyLine(preface, 6);
+    	document.add(preface);
+    	//third table
+    	
+    	PdfPTable pay  = new PdfPTable(new float[] { 1, 1, 1, 1, 1 });
+    	pay.getDefaultCell().setBorder(PdfPCell.NO_BORDER);
+    	pay.setWidthPercentage(100);
+    	
+    	pay.addCell(new Phrase("Gross Pay", tfont));
+    	pay.addCell(new Phrase(""));
+    	
+    	p = new Paragraph("", tfont);    
+    	p.add((String) data.get(PayConstants.GROSS_PAY));
+    	
+		cell = new PdfPCell(p);
+		cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+		cell.setBorder(PdfPCell.NO_BORDER);
+		cell.setPaddingRight(40);		
+    	
+    	pay.addCell(cell);
+   
+    	
+    	com.itextpdf.text.List payTypeList = new com.itextpdf.text.List();
+    	com.itextpdf.text.List payValueList = new com.itextpdf.text.List();
+    	
+    	
+    	payTypeList.add("Net Pay" + "\n\n");
+    	payTypeList.add("Mid-Month Payroll" + "\n");
+    	payTypeList.add("Month-End Payroll" + "\n");
+ 	
+		payValueList.add((String) data.get(PayConstants.NET_PAY) + "\n\n");
+		payValueList.add((String) data.get(PayConstants.MID_MONTH_PAYROLL) + "\n");
+		payValueList.add((String) data.get(PayConstants.MONTH_END_PAYROLL) + "\n");
+    	
+    	Phrase payTypePhrase = new Phrase();    
+    	payTypePhrase.setFont(tfont);
+    	payTypePhrase.add(payTypeList);   	
+    	
+    	p = new Paragraph("", tfont);    
+    	p.add(payTypePhrase);
+    	cell = new PdfPCell(p);		
+		cell.setBorder(PdfPCell.NO_BORDER);
+		pay.addCell(cell);
+		
+		Phrase payValuePhrase = new Phrase();    
+		payValuePhrase.setFont(tfont);
+		payValuePhrase.add(payValueList);   	
+    	
+    	p = new Paragraph("", tfont);    
+    	p.add(payValuePhrase);
+    	cell = new PdfPCell(p);		
+		cell.setBorder(PdfPCell.NO_BORDER);
+		cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+		pay.addCell(cell);
+		
+		
+    	
+    	document.add(pay);
+    	
+    	
+    	
 
     }
 

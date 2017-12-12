@@ -10,11 +10,14 @@ import java.util.Map;
 import java.util.Properties;
 
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import com.pw.payslip.exception.PaySlipException;
 
 public class ExcelReader {
 
@@ -29,7 +32,7 @@ public class ExcelReader {
 			//Sheet level
 			
 			XSSFWorkbook workbook = new XSSFWorkbook(fis);
-			
+			DataFormatter fmt = new DataFormatter();
 			//first sheet of workbook
 			for(int i = 0; i <workbook.getNumberOfSheets(); i++){
 				XSSFSheet sheet = workbook.getSheetAt(0);//TODO assumption is everything on first sheet
@@ -52,14 +55,14 @@ public class ExcelReader {
 			    	 while (cells.hasNext()){
 			    		 XSSFCell cell = (XSSFCell) cells.next();
 			    		 if (cell.getCellType() == 0){//0 NUMERIC
-			    			 rowMap.put(columnNames.getCell(counter).getStringCellValue(), cell.getNumericCellValue()+"");				 
+			    			 rowMap.put(columnNames.getCell(counter).getStringCellValue(), fmt.formatCellValue(cell)+"");				 
 			    		 }else{
-			    			rowMap.put(columnNames.getCell(counter).getStringCellValue(), cell.getStringCellValue());
+			    			rowMap.put(columnNames.getCell(counter).getStringCellValue(), fmt.formatCellValue(cell));
 			    		 }
 			    		 counter++;
 			    	 }	  	
 			    	
-			    	hashMap.put(row.getRowNum(), rowMap);	//no more +1 because it will process the current row number, we already skip 0
+			    	hashMap.put(row.getRowNum() + 1, rowMap);	//reverting + 1, row starts at row 2
 			    }
 				
 			}
@@ -78,12 +81,12 @@ public class ExcelReader {
 	public static void main(String[] args){
 		PropertiesUtil propIUtil = new PropertiesUtil();
 		Properties prop = propIUtil.loadProperties();
-		File file = new File("C:\\Users\\w68790\\payservice\\test.xlsx");
+		File file = new File("C:\\Users\\Olie.Abesamis\\Documents\\JavaApps\\testdata.xlsx");
 		Map results = ExcelReader.loadExcelLines(file);
 		
 		 System.out.println(results.size());
 		//looping on the list start with 1 since it is the first row with data
-		for (int i = 1; i<= results.size(); i++){
+		for (int i = 2; i<= results.size(); i++){
 			Map cells = (LinkedHashMap<String, String>) results.get(i);
 			//TODO
 			//loop to generate pdf
